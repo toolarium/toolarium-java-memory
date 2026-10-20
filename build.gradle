@@ -2,22 +2,29 @@
  * build.gradle
  *
  * Copyright by toolarium-java-memory, all rights reserved.
- * MIT License: https://mit-license.org
  */
 apply from: "https://raw.githubusercontent.com/toolarium/common-gradle-build/master/gradle/common.gradle"
-
 
 /****************************************************************************************
  * Define project dependencies
  ****************************************************************************************/
 dependencies {
-    // see https://docs.gradle.org/current/userguide/java_library_plugin.html
 
-    // utilities
-    //implementation "net.sf.jptools:jptools:${commonGradleJptoolsVersion}"
-    //implementation "net.sf.jptools:jptools:${commonGradleJptoolsVersion}:slf4j-redirect"
+    // common library used for test cases
+    implementation "com.github.toolarium:toolarium-common:1.2.0"
 
     // logging
     implementation "org.slf4j:slf4j-api:${commonGradleSlf4jApiVersion}"
     testRuntimeOnly "ch.qos.logback:logback-classic:${commonGradleLogbackVersion}"
+    
+    // parameterized tests
+    testImplementation "org.junit.jupiter:junit-jupiter-params:5.12.2"
+}
+
+
+/****************************************************************************************
+ * Suppress obsolete source/target warnings when compiling with a newer JDK
+ ****************************************************************************************/
+tasks.withType(JavaCompile) {
+    options.compilerArgs << '-Xlint:-options'
 }

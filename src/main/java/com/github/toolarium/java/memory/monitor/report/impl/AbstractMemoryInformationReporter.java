@@ -137,7 +137,7 @@ public abstract class AbstractMemoryInformationReporter implements IMemoryInform
 
 
     /**
-     * Appends a labeled value as a human-readable byte size, preceded by a comma unless immediately after {@code —}.
+     * Appends a labeled value as a human-readable byte size, preceded by a comma unless immediately after the separator.
      *
      * @param sb the string builder to append to
      * @param label the label

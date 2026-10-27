@@ -52,7 +52,11 @@ public final class MemoryMetricStatistics {
         this.min = min;
         this.max = max;
         this.stdDev = stdDev;
-        this.percentiles = percentiles;
+        if (percentiles != null) {
+            this.percentiles = percentiles.clone();
+        } else {
+            this.percentiles = null;
+        }
     }
 
 

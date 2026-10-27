@@ -24,15 +24,15 @@ import java.time.Duration;
  * <p><strong>Scope and window:</strong> the statistic scope is determined solely by
  * {@link Builder#window(Duration)}:</p>
  * <ul>
- *   <li>A non-zero {@link Duration} — {@link com.github.toolarium.java.memory.monitor.dto.StatisticScopeType#WINDOW}:
+ *   <li>A non-zero {@link Duration}: {@link com.github.toolarium.java.memory.monitor.dto.StatisticScopeType#WINDOW}:
  *       statistics are computed over a rolling time window. Only readings within that window are considered.</li>
- *   <li>{@link Duration#ZERO} — {@link com.github.toolarium.java.memory.monitor.dto.StatisticScopeType#LIFETIME}:
+ *   <li>{@link Duration#ZERO}: {@link com.github.toolarium.java.memory.monitor.dto.StatisticScopeType#LIFETIME}:
  *       statistics accumulate over the entire lifetime of the monitor instance.</li>
  * </ul>
  *
  * <p>Each call to {@link Builder#build()} creates a brand-new monitor instance. If the previous
  * monitor used a window and the new one does not (or vice versa), the new instance starts collecting
- * from the moment {@link IMemoryInformationMonitor#start()} is called — no history is carried over.</p>
+ * from the moment {@link IMemoryInformationMonitor#start()} is called. No history is carried over.</p>
  *
  * <p>The factory registers a JVM shutdown hook that stops the monitor automatically.</p>
  *
@@ -52,7 +52,7 @@ public final class MemoryMonitorFactory {
     /** Default age in milliseconds after which the latest statistics are considered stale (3× the default cb-meminfo.sh write interval of 5 s). */
     public static final long DEFAULT_STALE_THRESHOLD_MS = 15_000;
 
-    /** Default report interval in milliseconds (60 s — standard operational monitoring cadence, 10 snapshots per default 10-minute window). */
+    /** Default report interval in milliseconds (60 s, standard operational monitoring cadence, 10 snapshots per default 10-minute window). */
     public static final long DEFAULT_REPORT_INTERVAL_MS = 60_000;
 
     private static final class HOLDER {
@@ -60,18 +60,33 @@ public final class MemoryMonitorFactory {
     }
 
     private volatile IMemoryInformationMonitor monitor;
+    private final Thread shutdownHook;
 
 
     /**
-     * Private constructor — registers a shutdown hook that stops whatever monitor is current.
+     * Private constructor, registers a shutdown hook that stops whatever monitor is current.
      */
     private MemoryMonitorFactory() {
-        Runtime.getRuntime().addShutdownHook(new Thread(() -> {
+        shutdownHook = new Thread(() -> {
             IMemoryInformationMonitor m = monitor;
             if (m != null) {
                 m.stop();
             }
-        }));
+        }, "MemoryMonitorFactory-shutdown");
+        Runtime.getRuntime().addShutdownHook(shutdownHook);
+    }
+
+
+    /**
+     * Removes the JVM shutdown hook. Call this in environments with classloader recycling
+     * (e.g. servlet containers) to allow the factory and its classloader to be garbage-collected.
+     */
+    void removeShutdownHook() {
+        try {
+            Runtime.getRuntime().removeShutdownHook(shutdownHook);
+        } catch (IllegalStateException e) {
+            // JVM is already shutting down
+        }
     }
 
 
@@ -131,7 +146,7 @@ public final class MemoryMonitorFactory {
 
 
         /**
-         * Private constructor — use {@link MemoryMonitorFactory#newBuilder()}.
+         * Private constructor. Use {@link MemoryMonitorFactory#newBuilder()}.
          */
         private Builder() {
         }
@@ -264,7 +279,7 @@ public final class MemoryMonitorFactory {
          * Has no effect when no reporter is configured.
          *
          * <p>60 seconds is a good default: it matches the standard operational monitoring cadence and
-         * produces 10 snapshots per default 10-minute window — enough to show trends without flooding the log.</p>
+         * produces 10 snapshots per default 10-minute window, enough to show trends without flooding the log.</p>
          *
          * @param interval the report interval; {@code null} or {@link Duration#ZERO} disables background reporting
          * @return this builder

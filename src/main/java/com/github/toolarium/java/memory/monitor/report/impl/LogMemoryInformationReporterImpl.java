@@ -56,21 +56,16 @@ public class LogMemoryInformationReporterImpl extends AbstractMemoryInformationR
                 nonHeapStats = statistics.get(MemoryMetric.NON_HEAP);
             }
             if (heapStats != null && nonHeapStats != null) {
-                LOG.debug("Memory: "
-                        + "heap ["
-                        + ByteUtil.getInstance().prettyPrintByteSize(heapStats.getMin()) + VALUE_SEPARATOR
-                        + ByteUtil.getInstance().prettyPrintByteSize(heapStats.getAvg()) + VALUE_SEPARATOR
-                        + ByteUtil.getInstance().prettyPrintByteSize(heapStats.getLast()) + VALUE_SEPARATOR
-                        + ByteUtil.getInstance().prettyPrintByteSize(heapStats.getMax())
-                        + "]"
-                        + ", "
-                        + "non heap ["
-                        + ByteUtil.getInstance().prettyPrintByteSize(nonHeapStats.getMin()) + VALUE_SEPARATOR
-                        + ByteUtil.getInstance().prettyPrintByteSize(nonHeapStats.getAvg()) + VALUE_SEPARATOR
-                        + ByteUtil.getInstance().prettyPrintByteSize(nonHeapStats.getLast()) + VALUE_SEPARATOR
-                        + ByteUtil.getInstance().prettyPrintByteSize(nonHeapStats.getMax())
-                        + "]"
-                        + " - [min" + VALUE_SEPARATOR + "avg" + VALUE_SEPARATOR + "last" + VALUE_SEPARATOR + "max]");
+                LOG.debug("Memory: heap [{}{}{}{}{}{}{}], non heap [{}{}{}{}{}{}{}] - [min{}avg{}last{}max]",
+                        ByteUtil.getInstance().prettyPrintByteSize(heapStats.getMin()), VALUE_SEPARATOR,
+                        ByteUtil.getInstance().prettyPrintByteSize(heapStats.getAvg()), VALUE_SEPARATOR,
+                        ByteUtil.getInstance().prettyPrintByteSize(heapStats.getLast()), VALUE_SEPARATOR,
+                        ByteUtil.getInstance().prettyPrintByteSize(heapStats.getMax()),
+                        ByteUtil.getInstance().prettyPrintByteSize(nonHeapStats.getMin()), VALUE_SEPARATOR,
+                        ByteUtil.getInstance().prettyPrintByteSize(nonHeapStats.getAvg()), VALUE_SEPARATOR,
+                        ByteUtil.getInstance().prettyPrintByteSize(nonHeapStats.getLast()), VALUE_SEPARATOR,
+                        ByteUtil.getInstance().prettyPrintByteSize(nonHeapStats.getMax()),
+                        VALUE_SEPARATOR, VALUE_SEPARATOR, VALUE_SEPARATOR);
             }
         }
         LOG.info("{}", formatStatistics(statistics));

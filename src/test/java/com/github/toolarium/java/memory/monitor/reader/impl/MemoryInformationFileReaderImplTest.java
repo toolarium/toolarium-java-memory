@@ -409,7 +409,7 @@ public class MemoryInformationFileReaderImplTest implements MemoryInformationMon
 
         reader.reset();
 
-        // same file, same modtime — but after reset the reader must re-read it
+        // same file, same modtime; but after reset the reader must re-read it
         assertNotNull(reader.process());
     }
 }

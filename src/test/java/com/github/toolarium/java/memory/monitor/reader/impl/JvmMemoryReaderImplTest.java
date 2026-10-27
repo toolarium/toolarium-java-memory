@@ -46,17 +46,25 @@ public class JvmMemoryReaderImplTest {
 
 
     /**
-     * {@code process()} must return a fresh reading on every call — values may change between calls.
+     * {@code process()} returns a reading on the first call and after {@code reset()};
+     * a second call without reset returns {@code null} when the values have not changed.
      */
     @Test
     public void testProcessCanBeCalledRepeatedly() {
         JvmMemoryReaderImpl reader = new JvmMemoryReaderImpl();
         MemoryInformation first = reader.process();
-        MemoryInformation second = reader.process();
         assertNotNull(first);
-        assertNotNull(second);
         assertTrue(first.isSuccess());
-        assertTrue(second.isSuccess());
+
+        // Without reset, unchanged values return null (change detection)
+        MemoryInformation unchanged = reader.process();
+        assertNull(unchanged, "Unchanged values must return null");
+
+        // After reset, the next call must produce a fresh reading
+        reader.reset();
+        MemoryInformation afterReset = reader.process();
+        assertNotNull(afterReset);
+        assertTrue(afterReset.isSuccess());
     }
 
 

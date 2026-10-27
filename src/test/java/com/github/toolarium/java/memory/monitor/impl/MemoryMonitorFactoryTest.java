@@ -126,7 +126,7 @@ public class MemoryMonitorFactoryTest {
             monitor.collectOnce();
             assertNotNull(monitor.getLatestStatistics(), "First reading must be recorded");
 
-            // Write the same content again with a new lastModifiedTime — same in-file timestamp must be skipped
+            // Write the same content again with a new lastModifiedTime; same in-file timestamp must be skipped
             writeContent(tempFile, content, 2_000_000L);
             monitor.collectOnce();
 

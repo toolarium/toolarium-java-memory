@@ -17,7 +17,7 @@ import java.util.Arrays;
  * to make room, so the effective window may be shorter than {@code windowMs} if readings arrive
  * faster than the capacity allows.</p>
  *
- * <p>Not thread-safe — all calls must be serialized externally (typically by the collector lock
+ * <p>Not thread-safe. All calls must be serialized externally (typically by the collector lock
  * in {@link com.github.toolarium.java.memory.monitor.impl.MemoryInformationMonitorImpl}).</p>
  *
  * @author patrick
@@ -34,6 +34,7 @@ public class SlidingWindow {
     private final long[][] values;
     private int head;
     private int size;
+    private long[][] cachedSortedValues;
 
 
     /**
@@ -71,7 +72,7 @@ public class SlidingWindow {
         evict(milliTime);
 
         if (size == capacity) {
-            // buffer full — drop oldest to make room
+            // buffer full: drop oldest to make room
             head = (head + 1) % capacity;
             size--;
         }
@@ -80,6 +81,7 @@ public class SlidingWindow {
         timestamps[tail] = milliTime;
         System.arraycopy(readingValues, 0, values[tail], 0, metricCount);
         size++;
+        cachedSortedValues = null;
     }
 
 
@@ -90,9 +92,14 @@ public class SlidingWindow {
      */
     public void evict(long milliTime) {
         long cutoff = milliTime - windowMs;
+        boolean evicted = false;
         while (size > 0 && timestamps[head] < cutoff) {
             head = (head + 1) % capacity;
             size--;
+            evicted = true;
+        }
+        if (evicted) {
+            cachedSortedValues = null;
         }
     }
 
@@ -104,6 +111,10 @@ public class SlidingWindow {
      * @return sorted values; empty array if no values are present
      */
     public long[] getSortedValues(int col) {
+        if (cachedSortedValues != null && cachedSortedValues[col] != null) {
+            return cachedSortedValues[col];
+        }
+
         int count = 0;
         for (int i = 0; i < size; i++) {
             if (values[(head + i) % capacity][col] != ABSENT) {
@@ -123,6 +134,11 @@ public class SlidingWindow {
             }
         }
         Arrays.sort(result);
+
+        if (cachedSortedValues == null) {
+            cachedSortedValues = new long[metricCount][];
+        }
+        cachedSortedValues[col] = result;
         return result;
     }
 

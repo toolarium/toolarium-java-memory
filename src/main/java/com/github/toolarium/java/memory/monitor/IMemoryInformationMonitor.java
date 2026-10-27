@@ -46,7 +46,7 @@ public interface IMemoryInformationMonitor {
 
     /**
      * Returns the latest statistics snapshot for the primary (first configured) window.
-     * Thread-safe — can be called from any thread without blocking the collector.
+     * Thread-safe; can be called from any thread without blocking the collector.
      *
      * @return the latest statistics snapshot, or {@code null} if no data has been collected yet
      */
@@ -79,11 +79,11 @@ public interface IMemoryInformationMonitor {
      *
      * <p>The scope is determined at build time by the window setting:</p>
      * <ul>
-     *   <li>{@link StatisticScopeType#WINDOW} — a positive window length was set; statistics and
+     *   <li>{@link StatisticScopeType#WINDOW}: a positive window length was set; statistics and
      *       percentiles reflect only readings within that rolling window.</li>
-     *   <li>{@link StatisticScopeType#LIFETIME} — window is disabled (0); statistics accumulate
+     *   <li>{@link StatisticScopeType#LIFETIME}: window is disabled (0); statistics accumulate
      *       from the moment {@link #start()} is called. Switching to a different scope requires
-     *       reconfiguring via {@link MemoryMonitorFactory#newBuilder()} and restarting — the new
+     *       reconfiguring via {@link MemoryMonitorFactory#newBuilder()} and restarting. The new
      *       instance begins with no history.</li>
      * </ul>
      *

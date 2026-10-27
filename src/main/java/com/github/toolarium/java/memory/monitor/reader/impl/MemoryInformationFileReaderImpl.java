@@ -235,7 +235,7 @@ public class MemoryInformationFileReaderImpl implements IMemoryInformationReader
         try {
             return LocalDateTime.parse(date + " " + time, TIMESTAMP_FORMATTER);
         } catch (DateTimeParseException e) {
-            // the exception message may contain file content — intentionally not logged
+            // the exception message may contain file content; intentionally not logged
             return null;
         }
     }
@@ -277,7 +277,7 @@ public class MemoryInformationFileReaderImpl implements IMemoryInformationReader
                 try {
                     values[col] = Long.parseLong(parts[index]);
                 } catch (NumberFormatException e) {
-                    // the exception message may contain file content — intentionally not logged
+                    // the exception message may contain file content; intentionally not logged
                     return MemoryInformation.failure(PROBLEM_NOT_NUMERIC, "column " + metric.getColumnName());
                 }
 

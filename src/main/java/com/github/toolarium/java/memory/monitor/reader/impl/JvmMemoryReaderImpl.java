@@ -38,14 +38,19 @@ public class JvmMemoryReaderImpl implements IMemoryInformationReader {
 
     private static final int METRIC_COUNT = MemoryMetric.values().length;
 
+    private long lastHeapCommitted = -1;
+    private long lastNonHeapCommitted = -1;
+    private long lastHeapUsed = -1;
+    private long lastNonHeapUsed = -1;
+
 
     /**
      * Reads the current JVM heap and non-heap memory usage.
      *
-     * <p>Every call returns a new successful reading with the current values.
-     * Returns {@code null} only if the calling thread is interrupted.</p>
+     * <p>Returns a new reading only when at least one value has changed since the last call.
+     * Returns {@code null} if the values are unchanged or the calling thread is interrupted.</p>
      *
-     * @return the current JVM memory reading, or {@code null} if the thread is interrupted
+     * @return the current JVM memory reading, or {@code null} if unchanged or interrupted
      */
     @Override
     public MemoryInformation process() {
@@ -57,24 +62,42 @@ public class JvmMemoryReaderImpl implements IMemoryInformationReader {
         MemoryUsage heap = bean.getHeapMemoryUsage();
         MemoryUsage nonHeap = bean.getNonHeapMemoryUsage();
 
+        long hc = heap.getCommitted();
+        long nc = nonHeap.getCommitted();
+        long hu = heap.getUsed();
+        long nu = nonHeap.getUsed();
+
+        if (hc == lastHeapCommitted && nc == lastNonHeapCommitted
+                && hu == lastHeapUsed && nu == lastNonHeapUsed) {
+            return null;
+        }
+
+        lastHeapCommitted = hc;
+        lastNonHeapCommitted = nc;
+        lastHeapUsed = hu;
+        lastNonHeapUsed = nu;
+
         long[] values = new long[METRIC_COUNT];
         for (int i = 0; i < METRIC_COUNT; i++) {
             values[i] = SlidingWindow.ABSENT;
         }
-        values[MemoryMetric.HEAP.ordinal()] = heap.getCommitted();
-        values[MemoryMetric.NON_HEAP.ordinal()] = nonHeap.getCommitted();
-        values[MemoryMetric.HEAP_USED.ordinal()] = heap.getUsed();
-        values[MemoryMetric.NON_HEAP_USED.ordinal()] = nonHeap.getUsed();
+        values[MemoryMetric.HEAP.ordinal()] = hc;
+        values[MemoryMetric.NON_HEAP.ordinal()] = nc;
+        values[MemoryMetric.HEAP_USED.ordinal()] = hu;
+        values[MemoryMetric.NON_HEAP_USED.ordinal()] = nu;
 
         return MemoryInformation.success(LocalDateTime.now(), values);
     }
 
 
     /**
-     * Resets the internal state. This implementation has no mutable state, so this is a no-op.
+     * Resets the internal state so the next call to {@link #process()} always produces a reading.
      */
     @Override
     public void reset() {
-        // no state to reset
+        lastHeapCommitted = -1;
+        lastNonHeapCommitted = -1;
+        lastHeapUsed = -1;
+        lastNonHeapUsed = -1;
     }
 }

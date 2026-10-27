@@ -35,7 +35,7 @@ import org.slf4j.LoggerFactory;
  * parses memory information, and computes statistics per {@link MemoryMetric}.
  *
  * <p>An internal daemon thread polls the file and collects data. A thread-safe, immutable
- * snapshot of the latest statistics is published via {@link #getLatestStatistics()} — readers never
+ * snapshot of the latest statistics is published via {@link #getLatestStatistics()}; readers never
  * block the collector thread.</p>
  *
  * <p>Statistics are computed in two {@link StatisticScopeType scopes}:</p>
@@ -96,7 +96,7 @@ public class MemoryInformationMonitorImpl implements IMemoryInformationMonitor, 
     private volatile boolean running;
     private volatile Thread collectorThread;
     private volatile MemoryInformationStatistics[] latestStatisticsPerWindow;
-    private Duration[] windowSizes;
+    private volatile Duration[] windowSizes;
     private volatile boolean initialized;
     private volatile long staleThresholdMs;
     private volatile String currentProblem;
@@ -109,7 +109,7 @@ public class MemoryInformationMonitorImpl implements IMemoryInformationMonitor, 
 
 
     /**
-     * Constructor for test and single-window usage — no reporter.
+     * Constructor for test and single-window usage, no reporter.
      *
      * @param windowSize the sliding window size (null disables the window, max {@link MemoryMonitorFactory#MAX_WINDOW})
      * @param staleThresholdMilliseconds age after which stats are stale (0 to disable)
@@ -217,6 +217,10 @@ public class MemoryInformationMonitorImpl implements IMemoryInformationMonitor, 
             }
         }
         if (reporter != null && reportIntervalMs > 0) {
+            MemoryInformationStatistics[] snapshots = latestStatisticsPerWindow;
+            if (snapshots != null) {
+                reporter.report(snapshots[0]);
+            }
             reporter.end();
         }
         LOG.info("MemoryInformationMonitor stopped.");
@@ -234,7 +238,7 @@ public class MemoryInformationMonitorImpl implements IMemoryInformationMonitor, 
 
 
     /**
-     * Returns the latest statistics snapshot. Thread-safe — can be called from any thread
+     * Returns the latest statistics snapshot. Thread-safe; can be called from any thread
      * without blocking the collector. Use {@link #isStale()} or {@link #getLatestStatisticTimestamp()}
      * to detect outdated data.
      *
@@ -353,11 +357,13 @@ public class MemoryInformationMonitorImpl implements IMemoryInformationMonitor, 
 
         synchronized (collectLock) {
             checkNotInitialized();
+            Duration[] copy = windowSizes.clone();
             if (window == null || window.isZero()) {
-                windowSizes[0] = null;
+                copy[0] = null;
             } else {
-                windowSizes[0] = window;
+                copy[0] = window;
             }
+            windowSizes = copy;
         }
     }
 
@@ -424,6 +430,7 @@ public class MemoryInformationMonitorImpl implements IMemoryInformationMonitor, 
      */
     void collectOnce() {
         synchronized (collectLock) {
+            ensureInitialized();
             processIfChanged();
             checkStale();
         }
@@ -496,7 +503,7 @@ public class MemoryInformationMonitorImpl implements IMemoryInformationMonitor, 
                     callReporterIfDue();
                 } catch (RuntimeException e) {
                     if (LOG.isDebugEnabled()) {
-                        LOG.debug("MemoryInformationMonitor collection cycle failed: " + e.getMessage(), e);
+                        LOG.debug("MemoryInformationMonitor collection cycle failed: {}", e.getMessage(), e);
                     }
                     synchronized (collectLock) {
                         reportProblem(PROBLEM_UNEXPECTED, e.getClass().getName());
@@ -563,7 +570,6 @@ public class MemoryInformationMonitorImpl implements IMemoryInformationMonitor, 
      * valid data is found, and manages the problem-reporting state.
      */
     private void processIfChanged() {
-        ensureInitialized();
         MemoryInformation reading = reader.process();
         if (reading == null) {
             return;
@@ -697,10 +703,18 @@ public class MemoryInformationMonitorImpl implements IMemoryInformationMonitor, 
             return null;
         }
 
-        StatisticCounter counter = new StatisticCounter();
+        long sum = 0;
         for (long value : sorted) {
-            counter.add(value);
+            sum += value;
         }
+        double avg = (double) sum / sorted.length;
+
+        double varianceSum = 0;
+        for (long value : sorted) {
+            double diff = value - avg;
+            varianceSum += diff * diff;
+        }
+        double stdDev = Math.sqrt(varianceSum / sorted.length);
 
         long[] percentiles = new long[QUANTILES.length];
         for (int i = 0; i < QUANTILES.length; i++) {
@@ -708,8 +722,8 @@ public class MemoryInformationMonitorImpl implements IMemoryInformationMonitor, 
         }
 
         return new MemoryMetricStatistics(metric, StatisticScopeType.WINDOW, sorted.length, sw.getLastValue(metric.ordinal()),
-                                          (long) counter.getAverage(), sorted[0], sorted[sorted.length - 1],
-                                          (long) counter.getStandardDeviation(), percentiles);
+                                          (long) avg, sorted[0], sorted[sorted.length - 1],
+                                          (long) stdDev, percentiles);
     }
 
 

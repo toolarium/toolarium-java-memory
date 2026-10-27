@@ -60,17 +60,17 @@ Multiple concurrent windows can be configured with `windows(Duration...)`. The f
 ### Quick start
 
 ```java
-// File-based monitor (default) — configured from environment variables / system properties
+// File-based monitor (default), configured from environment variables / system properties
 IMemoryInformationMonitor monitor = MemoryMonitorFactory.getInstance().getMemoryInformationMonitor();
 monitor.start();   // safe to call before the file exists
 
-// JVM-only monitor — no file needed
+// JVM-only monitor: no file needed
 IMemoryInformationMonitor monitor = MemoryMonitorFactory.getInstance().newBuilder()
         .jvmReader()
         .build();
 monitor.start();
 
-// Multiple concurrent windows — file is read once, all windows updated from the same reading
+// Multiple concurrent windows: file is read once, all windows updated from the same reading
 IMemoryInformationMonitor monitor = MemoryMonitorFactory.getInstance().newBuilder()
         .windows(Duration.ofMinutes(5), Duration.ofHours(1))
         .build();
@@ -79,7 +79,7 @@ monitor.start();
 // Primary window (first configured)
 MemoryInformationStatistics stats5m = monitor.getLatestStatistics();
 
-// Specific window by duration — throws IllegalArgumentException if the duration was not configured
+// Specific window by duration: throws IllegalArgumentException if the duration was not configured
 MemoryInformationStatistics stats1h = monitor.getLatestStatistics(Duration.ofHours(1));
 
 // Check if the data source is available (file present, no parse errors)
@@ -113,7 +113,7 @@ if (stats != null) {
 A reporter receives periodic statistics snapshots and problem notifications from the monitor.
 Use the built-in log reporter or supply your own.
 
-**Built-in log reporter** — writes a formatted summary to SLF4J at INFO level every 60 s:
+**Built-in log reporter**: writes a formatted summary to SLF4J at INFO level every 60 s:
 
 ```java
 IMemoryInformationMonitor monitor = MemoryMonitorFactory.getInstance().newBuilder()
@@ -123,7 +123,7 @@ IMemoryInformationMonitor monitor = MemoryMonitorFactory.getInstance().newBuilde
 monitor.start();
 ```
 
-**Custom reporter** — implement `IMemoryInformationReporter` directly, or extend
+**Custom reporter**: implement `IMemoryInformationReporter` directly, or extend
 `AbstractMemoryInformationReporter` to inherit the formatted output and override only what you need:
 
 ```java
@@ -154,10 +154,10 @@ monitor.start();
 ```
 
 The monitor calls:
-- `start(intervalMs)` — once when the monitor starts
-- `report(statistics)` — periodically at the configured interval; `statistics` is `null` if no data yet
-- `reportProblem(problem, detail)` — once per distinct problem until it clears (e.g. file missing, format error)
-- `end()` — once when the monitor stops
+- `start(intervalMs)`: once when the monitor starts
+- `report(statistics)`: periodically at the configured interval; `statistics` is `null` if no data yet
+- `reportProblem(problem, detail)`: once per distinct problem until it clears (e.g. file missing, format error)
+- `end()`: once when the monitor stops
 
 ### Builder configuration
 
@@ -292,7 +292,7 @@ INFO  LogMemoryInformationReporterImpl -
   JIT           — P95: 4.0 MB, Median: 4.0 MB, Spread: 0.0 MB, Min: 3.5 MB, Max: 4.5 MB
 ```
 
-The `Last` line shows the most recent raw reading for OS metrics (Total, Used, Free, Process) — the instant
+The `Last` line shows the most recent raw reading for OS metrics (Total, Used, Free, Process), the instant
 snapshot before the statistics. `last reading` is the timestamp written into the file by `cb-meminfo.sh`.
 `age` is how long ago Java captured the snapshot. `Spread` = P95 − Median; a large spread indicates the
 metric fluctuates significantly above its typical level.

@@ -15,7 +15,7 @@ import org.slf4j.LoggerFactory;
 
 /**
  * Implements a memory monitor
- * 
+ *
  * @author patrick
  */
 public class MemoryMonitor implements Runnable {
@@ -23,9 +23,9 @@ public class MemoryMonitor implements Runnable {
     private static final String VALUE_SEPARATOR = "|";
     private long interval = 5000; // 5 sec sample checkpoint interval
     private long resultIndex = 0;
-    private Thread monintorThread;
+    private volatile Thread monitorThread;
     private MemoryMXBean memoryBean;
-    private IMemoryReport memoryReport;
+    private volatile IMemoryReport memoryReport;
 
 
     /**
@@ -37,7 +37,7 @@ public class MemoryMonitor implements Runnable {
         this.memoryReport = memoryReport;
     }
 
-    
+
     /**
      * Sets the interval
      *
@@ -47,71 +47,71 @@ public class MemoryMonitor implements Runnable {
         this.interval = value;
     }
 
-    
+
     /**
      * Start the memory monitor
      */
-    public void startMonitor() {
+    public synchronized void startMonitor() {
         if (memoryReport == null) {
             memoryReport = new LogMemoryReport();
         }
-        
-        if (monintorThread == null) {
+
+        if (monitorThread == null) {
             memoryBean = ManagementFactory.getMemoryMXBean();
-            monintorThread = new Thread(this, MemoryMonitor.class.getName() + ": Memory monitor");
-            monintorThread.setDaemon(true);
-            monintorThread.start();
+            monitorThread = new Thread(this, MemoryMonitor.class.getName() + ": Memory monitor");
+            monitorThread.setDaemon(true);
+            monitorThread.start();
         }
     }
 
 
     /**
-     * Stops th memory monitor
+     * Stops the memory monitor
      */
-    public void stopMonitor() {
-        if (monintorThread != null) {
-            memoryReport.end();
-            memoryReport = null;
+    public synchronized void stopMonitor() {
+        Thread thread = monitorThread;
+        if (thread != null) {
+            monitorThread = null;
 
             try {
-                monintorThread.interrupt();
+                thread.interrupt();
             } catch (Exception e) {
                 // NOP
             }
-
-            monintorThread = null;
         }
     }
 
-    
+
     /**
      * @see java.lang.Runnable#run()
      */
     @Override
     public void run() {
-        if (memoryReport == null) {
+        IMemoryReport report = memoryReport;
+        if (report == null) {
             return;
         }
 
-        memoryReport.start(interval);
+        report.start(interval);
 
         try {
-            while (memoryReport != null && !Thread.currentThread().isInterrupted()) {
+            while (monitorThread == Thread.currentThread() && !Thread.currentThread().isInterrupted()) {
                 try {
                     // wait every check point before getting the next memory usage
                     Thread.sleep(interval);
-                    memoryReport.report(resultIndex, memoryBean.getHeapMemoryUsage(), memoryBean.getNonHeapMemoryUsage());
+                    report.report(resultIndex, memoryBean.getHeapMemoryUsage(), memoryBean.getNonHeapMemoryUsage());
                     resultIndex++;
                 } catch (InterruptedException e) {
                     Thread.currentThread().interrupt();
                 } catch (Exception e) {
-                    // NOP
+                    if (LOG.isDebugEnabled()) {
+                        LOG.debug("Memory report cycle failed: {}", e.getMessage(), e);
+                    }
                 }
             }
         } finally {
-            if (memoryReport != null) {
-                memoryReport.end();
-            }
+            report.end();
+            memoryReport = null;
         }
     }
 
@@ -122,7 +122,7 @@ public class MemoryMonitor implements Runnable {
      * @author pmeier
      */
     public interface IMemoryReport {
-        
+
         /**
          * Start memory report
          *
@@ -130,7 +130,7 @@ public class MemoryMonitor implements Runnable {
          */
         void start(long interval);
 
-        
+
         /**
          * Report the memory information
          *
@@ -140,7 +140,7 @@ public class MemoryMonitor implements Runnable {
          */
         void report(long id, MemoryUsage heapMemoryUsage, MemoryUsage nonHeapMemoryUsage);
 
-        
+
         /**
          * End the memory report
          */
@@ -152,7 +152,7 @@ public class MemoryMonitor implements Runnable {
      * Implements a log memory report
      */
     public abstract class AbstractMemoryReport implements IMemoryReport {
-        
+
         /**
          * @see com.github.toolarium.java.memory.monitor.MemoryMonitor.IMemoryReport#start(long)
          */
@@ -180,7 +180,7 @@ public class MemoryMonitor implements Runnable {
         @Override
         public void start(long i) {
             if (LOG.isDebugEnabled()) {
-                LOG.debug("Start with interval " + i);
+                LOG.debug("Start with interval {}", i);
             }
         }
 
@@ -202,21 +202,16 @@ public class MemoryMonitor implements Runnable {
         @Override
         public void report(long id, MemoryUsage heapMemoryUsage, MemoryUsage nonHeapMemoryUsage) {
             if (LOG.isDebugEnabled()) {
-                LOG.debug("Memory: "
-                           + "heap [" 
-                           + ByteUtil.getInstance().prettyPrintByteSize(heapMemoryUsage.getInit()) + VALUE_SEPARATOR 
-                           + ByteUtil.getInstance().prettyPrintByteSize(heapMemoryUsage.getCommitted()) + VALUE_SEPARATOR 
-                           + ByteUtil.getInstance().prettyPrintByteSize(heapMemoryUsage.getUsed()) + VALUE_SEPARATOR 
-                           + ByteUtil.getInstance().prettyPrintByteSize(heapMemoryUsage.getMax()) 
-                           + "]"
-                           + ", "
-                           + "non heap [" 
-                           + ByteUtil.getInstance().prettyPrintByteSize(nonHeapMemoryUsage.getInit()) + VALUE_SEPARATOR 
-                           + ByteUtil.getInstance().prettyPrintByteSize(nonHeapMemoryUsage.getCommitted()) + VALUE_SEPARATOR 
-                           + ByteUtil.getInstance().prettyPrintByteSize(nonHeapMemoryUsage.getUsed()) + VALUE_SEPARATOR 
-                           + ByteUtil.getInstance().prettyPrintByteSize(nonHeapMemoryUsage.getMax()) 
-                           + "]" 
-                           + " - [init" + VALUE_SEPARATOR + "commited" + VALUE_SEPARATOR + "used" + VALUE_SEPARATOR + "max]");
+                LOG.debug("Memory: heap [{}{}{}{}{}{}{}], non heap [{}{}{}{}{}{}{}] - [init{}commited{}used{}max]",
+                           ByteUtil.getInstance().prettyPrintByteSize(heapMemoryUsage.getInit()), VALUE_SEPARATOR,
+                           ByteUtil.getInstance().prettyPrintByteSize(heapMemoryUsage.getCommitted()), VALUE_SEPARATOR,
+                           ByteUtil.getInstance().prettyPrintByteSize(heapMemoryUsage.getUsed()), VALUE_SEPARATOR,
+                           ByteUtil.getInstance().prettyPrintByteSize(heapMemoryUsage.getMax()),
+                           ByteUtil.getInstance().prettyPrintByteSize(nonHeapMemoryUsage.getInit()), VALUE_SEPARATOR,
+                           ByteUtil.getInstance().prettyPrintByteSize(nonHeapMemoryUsage.getCommitted()), VALUE_SEPARATOR,
+                           ByteUtil.getInstance().prettyPrintByteSize(nonHeapMemoryUsage.getUsed()), VALUE_SEPARATOR,
+                           ByteUtil.getInstance().prettyPrintByteSize(nonHeapMemoryUsage.getMax()),
+                           VALUE_SEPARATOR, VALUE_SEPARATOR, VALUE_SEPARATOR);
             }
         }
     }

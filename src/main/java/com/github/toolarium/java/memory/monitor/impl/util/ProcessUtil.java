@@ -19,7 +19,7 @@ import org.slf4j.LoggerFactory;
  * succeeds is cached and reused on every subsequent call:</p>
  * <ol>
  *   <li>{@code java.lang.ProcessHandle.current()} via reflection (Java 9+)</li>
- *   <li>{@link ManagementFactory#getRuntimeMXBean()}{@code .getName()} — the name is
+ *   <li>{@link ManagementFactory#getRuntimeMXBean()}{@code .getName()}: the name is
  *       typically {@code <pid>@<hostname>}; the part before {@code @} is used.</li>
  *   <li>Internal {@code sun.management.VMManagement#getProcessId()} via reflection
  *       (available on older HotSpot JVMs).</li>
@@ -48,7 +48,7 @@ public final class ProcessUtil {
         PROCESS_HANDLE,
         /** RuntimeMXBean.getName() split on '@' */
         RUNTIME_NAME,
-        /** sun.management.VMManagement#getProcessId() */
+        /** sun.management.VMManagement#getProcessId(): last-resort fallback for older HotSpot JVMs. */
         VM_MANAGEMENT,
         /** No strategy worked */
         NONE
@@ -232,19 +232,33 @@ public final class ProcessUtil {
 
     /**
      * Resolves the current process ID via internal {@code sun.management.VMManagement} reflection.
+     * Last-resort fallback for older HotSpot JVMs where neither {@code ProcessHandle} nor
+     * {@code RuntimeMXBean.getName()} is available. Uses {@code trySetAccessible()} (Java 9+)
+     * to avoid {@code InaccessibleObjectException} under strong encapsulation; falls back to
+     * {@code setAccessible(true)} on older JVMs. Logs a debug message when this strategy is
+     * attempted and a warning if access is denied.
      *
      * @return the process ID string, or empty if not available
      */
     private String resolveViaVmManagement() {
         try {
             if (ManagementFactory.getRuntimeMXBean() != null) {
+                if (LOG.isDebugEnabled()) {
+                    LOG.debug("Attempting VMManagement fallback strategy to determine process ID.");
+                }
                 java.lang.management.RuntimeMXBean runtime = ManagementFactory.getRuntimeMXBean();
                 Field jvmField = runtime.getClass().getDeclaredField("jvm");
                 if (jvmField != null) {
-                    jvmField.setAccessible(true);
+                    if (!tryMakeAccessible(jvmField)) {
+                        LOG.warn("Cannot access VMManagement: module system or security manager denied access.");
+                        return "";
+                    }
                     Object mgmt = jvmField.get(runtime);
                     Method pidMethod = mgmt.getClass().getDeclaredMethod("getProcessId");
-                    pidMethod.setAccessible(true);
+                    if (!tryMakeAccessible(pidMethod)) {
+                        LOG.warn("Cannot access VMManagement.getProcessId(): module system or security manager denied access.");
+                        return "";
+                    }
                     Object pid = pidMethod.invoke(mgmt);
                     if (pid != null) {
                         return "" + pid;
@@ -252,8 +266,36 @@ public final class ProcessUtil {
                 }
             }
         } catch (Exception e) { // NOPMD
-            // not available
+            if (LOG.isDebugEnabled()) {
+                LOG.debug("VMManagement fallback failed: {}", e.getMessage());
+            }
         }
         return "";
+    }
+
+
+    /**
+     * Attempts to make an {@link java.lang.reflect.AccessibleObject} accessible without
+     * throwing on Java 16+ strong encapsulation. Uses {@code trySetAccessible()} (Java 9+)
+     * when available, falls back to {@code setAccessible(true)} on older JVMs.
+     *
+     * @param accessible the field or method to make accessible
+     * @return {@code true} if the object is now accessible, {@code false} if access was denied
+     */
+    private boolean tryMakeAccessible(java.lang.reflect.AccessibleObject accessible) {
+        try {
+            Method tryMethod = java.lang.reflect.AccessibleObject.class.getMethod("trySetAccessible");
+            return Boolean.TRUE.equals(tryMethod.invoke(accessible));
+        } catch (NoSuchMethodException e) {
+            // Java 8: trySetAccessible() does not exist, fall back to setAccessible(true)
+            try {
+                accessible.setAccessible(true);
+                return true;
+            } catch (SecurityException se) {
+                return false;
+            }
+        } catch (Exception e) {
+            return false;
+        }
     }
 }

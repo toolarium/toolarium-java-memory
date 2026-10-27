@@ -29,7 +29,7 @@ public final class MemoryInformation {
 
 
     /**
-     * Private constructor — use {@link #success(LocalDateTime, long[])} or {@link #failure(String, String)}.
+     * Private constructor. Use {@link #success(LocalDateTime, long[])} or {@link #failure(String, String)}.
      *
      * @param timestamp the timestamp of this reading, or {@code null} for failure instances
      * @param values the metric values, or {@code null} for failure instances
@@ -52,7 +52,7 @@ public final class MemoryInformation {
      * @return the successful reading
      */
     public static MemoryInformation success(LocalDateTime timestamp, long[] values) {
-        return new MemoryInformation(timestamp, values, null, null);
+        return new MemoryInformation(timestamp, values.clone(), null, null);
     }
 
 
